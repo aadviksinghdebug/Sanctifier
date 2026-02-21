@@ -1,12 +1,8 @@
 use clap::{Parser, Subcommand};
 use colored::*;
-use std::path::{Path, PathBuf};
 use std::fs;
-<<<<<<< HEAD
-use sanctifier_core::{Analyzer, ArithmeticIssue, SizeWarning, UnsafePattern, PatternType};
-=======
-use sanctifier_core::{Analyzer, Finding};
->>>>>>> 525a41d (feat(cli): add unified JSON output for --format json (#14))
+use std::path::{Path, PathBuf};
+use sanctifier_core::{Analyzer, ArithmeticIssue, SizeWarning, UnsafePattern, PatternType, Finding};
 
 #[derive(Parser)]
 #[command(name = "sanctifier")]
@@ -23,7 +19,7 @@ enum Commands {
         /// Path to the contract directory or Cargo.toml
         #[arg(default_value = ".")]
         path: PathBuf,
-        
+
         /// Output format (text, json)
         #[arg(short, long, default_value = "text")]
         format: String,
@@ -46,7 +42,11 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Analyze { path, format, limit } => {
+        Commands::Analyze {
+            path,
+            format,
+            limit,
+        } => {
             let is_json = format == "json";
 
             if !is_soroban_project(path) {
@@ -56,16 +56,24 @@ fn main() {
 
             // In JSON mode, send informational lines to stderr so stdout is clean JSON.
             if is_json {
-                eprintln!("{} Sanctifier: Valid Soroban project found at {:?}", "✨".green(), path);
+                eprintln!(
+                    "{} Sanctifier: Valid Soroban project found at {:?}",
+                    "✨".green(),
+                    path
+                );
                 eprintln!("{} Analyzing contract at {:?}...", "🔍".blue(), path);
             } else {
-                println!("{} Sanctifier: Valid Soroban project found at {:?}", "✨".green(), path);
+                println!(
+                    "{} Sanctifier: Valid Soroban project found at {:?}",
+                    "✨".green(),
+                    path
+                );
                 println!("{} Analyzing contract at {:?}...", "🔍".blue(), path);
             }
-            
+
             let mut analyzer = Analyzer::new(false);
             analyzer.ledger_limit = *limit;
-            
+
             let mut all_size_warnings: Vec<SizeWarning> = Vec::new();
             let mut all_unsafe_patterns: Vec<UnsafePattern> = Vec::new();
             let mut all_auth_gaps: Vec<String> = Vec::new();
@@ -73,7 +81,15 @@ fn main() {
             let mut all_arithmetic_issues: Vec<ArithmeticIssue> = Vec::new();
 
             if path.is_dir() {
-                analyze_directory(path, &analyzer, &mut all_size_warnings, &mut all_unsafe_patterns, &mut all_auth_gaps, &mut all_panic_issues, &mut all_arithmetic_issues);
+                analyze_directory(
+                    path,
+                    &analyzer,
+                    &mut all_size_warnings,
+                    &mut all_unsafe_patterns,
+                    &mut all_auth_gaps,
+                    &mut all_panic_issues,
+                    &mut all_arithmetic_issues,
+                );
             } else if path.extension().and_then(|s| s.to_str()) == Some("rs") {
                 if let Ok(content) = fs::read_to_string(path) {
                     all_size_warnings.extend(analyzer.analyze_ledger_size(&content));
@@ -99,35 +115,22 @@ fn main() {
                         a.location = format!("{}: {}", path.display(), a.location);
                         all_arithmetic_issues.push(a);
                     }
-                    println!("Analysis complete for file: {:?}", path);
+                    if !is_json {
+                        println!("Analysis complete for file: {:?}", path);
+                    }
                 }
             }
 
-<<<<<<< HEAD
-            println!("{} Static analysis complete.", "✅".green());
-            
-            if format == "json" {
-                let output = serde_json::json!({
-                    "size_warnings": all_size_warnings,
-                    "unsafe_patterns": all_unsafe_patterns,
-                    "auth_gaps": all_auth_gaps,
-                    "panic_issues": all_panic_issues,
-                    "arithmetic_issues": all_arithmetic_issues,
-                });
-                println!("{}", serde_json::to_string_pretty(&output).unwrap_or_else(|_| "{}".to_string()));
-=======
             if is_json {
                 eprintln!("{} Static analysis complete.", "✅".green());
->>>>>>> 525a41d (feat(cli): add unified JSON output for --format json (#14))
             } else {
                 println!("{} Static analysis complete.", "✅".green());
             }
-            
+
             if is_json {
                 let mut findings: Vec<Finding> = Vec::new();
 
-                for w in &all_warnings {
-                    // struct_name is "file: StructName" when from analyze_directory
+                for w in &all_size_warnings {
                     let (file, struct_name) = match w.struct_name.split_once(": ") {
                         Some((f, s)) => (f.to_string(), s.to_string()),
                         None => (String::new(), w.struct_name.clone()),
@@ -143,8 +146,20 @@ fn main() {
                     });
                 }
 
+                for p in &all_unsafe_patterns {
+                    let (file, snippet) = match p.snippet.split_once(": ") {
+                        Some((f, s)) => (f.to_string(), s.to_string()),
+                        None => (String::new(), p.snippet.clone()),
+                    };
+                    findings.push(Finding {
+                        severity: "warning".to_string(),
+                        file,
+                        line: p.line,
+                        message: format!("Unsafe pattern detected: {}", snippet),
+                    });
+                }
+
                 for gap in &all_auth_gaps {
-                    // gap is "file: function_name"
                     let (file, func) = match gap.split_once(": ") {
                         Some((f, s)) => (f.to_string(), s.to_string()),
                         None => (String::new(), gap.clone()),
@@ -161,7 +176,6 @@ fn main() {
                 }
 
                 for issue in &all_panic_issues {
-                    // location is "file: function_name"
                     let (file, _) = match issue.location.split_once(": ") {
                         Some((f, s)) => (f.to_string(), s.to_string()),
                         None => (String::new(), issue.location.clone()),
@@ -177,13 +191,29 @@ fn main() {
                     });
                 }
 
+                for issue in &all_arithmetic_issues {
+                    let (file, _) = match issue.location.split_once(": ") {
+                        Some((f, s)) => (f.to_string(), s.to_string()),
+                        None => (String::new(), issue.location.clone()),
+                    };
+                    findings.push(Finding {
+                        severity: "warning".to_string(),
+                        file,
+                        line: 0,
+                        message: format!(
+                            "Function '{}': Unchecked `{}` operation. {}",
+                            issue.function_name, issue.operation, issue.suggestion
+                        ),
+                    });
+                }
+
                 let json = serde_json::to_string_pretty(&findings).unwrap_or_else(|_| "[]".to_string());
                 println!("{}", json);
             } else {
-                if all_warnings.is_empty() {
-                    println!("No ledger size issues found.");
+                if all_size_warnings.is_empty() && all_unsafe_patterns.is_empty() && all_auth_gaps.is_empty() && all_panic_issues.is_empty() && all_arithmetic_issues.is_empty() {
+                    println!("No issues found.");
                 } else {
-                    for warning in all_warnings {
+                    for warning in &all_size_warnings {
                         println!(
                             "{} Warning: Struct {} is approaching ledger entry size limit!",
                             "⚠️".yellow(),
@@ -195,50 +225,57 @@ fn main() {
                             warning.limit
                         );
                     }
-                }
 
-                if !all_auth_gaps.is_empty() {
-                    println!("\n{} Found potential Authentication Gaps!", "🛑".red());
-                    for gap in all_auth_gaps {
-                        println!("   {} Function {} is modifying state without require_auth()", "->".red(), gap.bold());
-                    }
-                } else {
-                    println!("\nNo authentication gaps found.");
-                }
-
-                if !all_panic_issues.is_empty() {
-                    println!("\n{} Found explicit Panics/Unwraps!", "🛑".red());
-                    for issue in all_panic_issues {
+                    for pattern in &all_unsafe_patterns {
+                        let msg = match pattern.pattern_type {
+                            PatternType::Panic => "Explicit panic!() call detected".red(),
+                            PatternType::Unwrap => "unwrap() call detected".yellow(),
+                            PatternType::Expect => "expect() call detected".yellow(),
+                        };
                         println!(
-                            "   {} Function {}: Using {} (Location: {})",
-                            "->".red(),
-                            issue.function_name.bold(),
-                            issue.issue_type.yellow().bold(),
-                            issue.location
+                            "{} {}: {}",
+                            "🚨".red(),
+                            msg,
+                            format!("{}:{}", pattern.line, pattern.snippet).bold()
                         );
                     }
-                    println!("   {} Tip: Prefer returning Result or Error types for better contract safety.", "💡".blue());
-                } else {
-                    println!("\nNo panic/unwrap issues found.");
-                }
 
-                if !all_arithmetic_issues.is_empty() {
-                    println!("\n{} Found unchecked Arithmetic Operations!", "🔢".yellow());
-                    for issue in all_arithmetic_issues {
-                        println!(
-                            "   {} Function {}: Unchecked `{}` ({})",
-                            "->".red(),
-                            issue.function_name.bold(),
-                            issue.operation.yellow().bold(),
-                            issue.location
-                        );
-                        println!("      {} {}", "💡".blue(), issue.suggestion);
+                    if !all_auth_gaps.is_empty() {
+                        println!("\n{} Found potential Authentication Gaps!", "🛑".red());
+                        for gap in &all_auth_gaps {
+                            println!("   {} Function {} is modifying state without require_auth()", "->".red(), gap.bold());
+                        }
                     }
-                } else {
-                    println!("\nNo arithmetic overflow risks found.");
+
+                    if !all_panic_issues.is_empty() {
+                        println!("\n{} Found explicit Panics/Unwraps!", "🛑".red());
+                        for issue in &all_panic_issues {
+                            println!(
+                                "   {} Function {}: Using {} (Location: {})",
+                                "->".red(),
+                                issue.function_name.bold(),
+                                issue.issue_type.yellow().bold(),
+                                issue.location
+                            );
+                        }
+                    }
+
+                    if !all_arithmetic_issues.is_empty() {
+                        println!("\n{} Found unchecked Arithmetic Operations!", "🔢".yellow());
+                        for issue in &all_arithmetic_issues {
+                            println!(
+                                "   {} Function {}: Unchecked `{}` ({})",
+                                "->".red(),
+                                issue.function_name.bold(),
+                                issue.operation.yellow().bold(),
+                                issue.location
+                            );
+                            println!("      {} {}", "💡".blue(), issue.suggestion);
+                        }
+                    }
                 }
             }
-        },
+        }
         Commands::Report { output } => {
             println!("{} Generating report...", "📄".yellow());
             if let Some(p) = output {
@@ -246,7 +283,7 @@ fn main() {
             } else {
                 println!("Report printed to stdout.");
             }
-        },
+        }
         Commands::Init => {
             println!("{} Initializing Sanctifier configuration...", "⚙️".cyan());
             println!("Created .sanctify.toml");
@@ -301,13 +338,27 @@ fn analyze_directory(
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                analyze_directory(&path, analyzer, all_size_warnings, all_unsafe_patterns, all_auth_gaps, all_panic_issues, all_arithmetic_issues);
+                analyze_directory(
+                    &path,
+                    analyzer,
+                    all_size_warnings,
+                    all_unsafe_patterns,
+                    all_auth_gaps,
+                    all_panic_issues,
+                    all_arithmetic_issues,
+                );
             } else if path.extension().and_then(|s| s.to_str()) == Some("rs") {
                 if let Ok(content) = fs::read_to_string(&path) {
                     let warnings = analyzer.analyze_ledger_size(&content);
                     for mut w in warnings {
                         w.struct_name = format!("{}: {}", path.display(), w.struct_name);
-                        all_warnings.push(w);
+                        all_size_warnings.push(w);
+                    }
+
+                    let patterns = analyzer.analyze_unsafe_patterns(&content);
+                    for mut p in patterns {
+                        p.snippet = format!("{}: {}", path.display(), p.snippet);
+                        all_unsafe_patterns.push(p);
                     }
 
                     let gaps = analyzer.scan_auth_gaps(&content);
