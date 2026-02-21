@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 use soroban_sdk::Env;
 use syn::{parse_str, File, Item, Type, Fields, Meta, ExprMethodCall, Macro};
 use syn::visit::{self, Visit};
@@ -6,6 +7,14 @@ use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use std::collections::HashSet;
 use regex::Regex;
+=======
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use syn::spanned::Spanned;
+use syn::visit::{self, Visit};
+use syn::{parse_str, Fields, File, Item, Meta, Type};
+use soroban_sdk::Env;
+>>>>>>> 36d9df5 (user defined regex)
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -84,6 +93,7 @@ pub struct PanicIssue {
     pub location: String,
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Serialize, Clone)]
 pub struct ArithmeticIssue {
     pub function_name: String,
@@ -120,6 +130,66 @@ pub struct Finding {
     pub file: String,
     pub line: usize,
     pub message: String,
+=======
+// ── Configuration ─────────────────────────────────────────────────────────────
+
+/// User-defined regex-based rule. Defined in .sanctify.toml under [[custom_rules]].
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomRule {
+    pub name: String,
+    pub pattern: String,
+}
+
+/// A match from a custom regex rule.
+#[derive(Debug, Serialize, Clone)]
+pub struct CustomRuleMatch {
+    pub rule_name: String,
+    pub line: usize,
+    pub snippet: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SanctifyConfig {
+    #[serde(default = "default_ignore_paths")]
+    pub ignore_paths: Vec<String>,
+    #[serde(default = "default_enabled_rules")]
+    pub enabled_rules: Vec<String>,
+    #[serde(default = "default_ledger_limit")]
+    pub ledger_limit: usize,
+    #[serde(default)]
+    pub strict_mode: bool,
+    #[serde(default)]
+    pub custom_rules: Vec<CustomRule>,
+}
+
+fn default_ignore_paths() -> Vec<String> {
+    vec!["target".to_string(), ".git".to_string()]
+}
+
+fn default_enabled_rules() -> Vec<String> {
+    vec![
+        "auth_gaps".to_string(),
+        "panics".to_string(),
+        "arithmetic".to_string(),
+        "ledger_size".to_string(),
+    ]
+}
+
+fn default_ledger_limit() -> usize {
+    64000
+}
+
+impl Default for SanctifyConfig {
+    fn default() -> Self {
+        Self {
+            ignore_paths: default_ignore_paths(),
+            enabled_rules: default_enabled_rules(),
+            ledger_limit: default_ledger_limit(),
+            strict_mode: false,
+            custom_rules: vec![],
+        }
+    }
+>>>>>>> 36d9df5 (user defined regex)
 }
 
 // ── Analyzer ──────────────────────────────────────────────────────────────────
@@ -133,6 +203,7 @@ impl Analyzer {
         Self { config }
     }
 
+<<<<<<< HEAD
     pub fn analyze_custom_rules(&self, source: &str) -> Vec<CustomRuleMatch> {
         let mut matches = Vec::new();
         for rule in &self.config.rules {
@@ -150,15 +221,32 @@ impl Analyzer {
     pub fn scan_auth_gaps(&self, source: &str) -> Vec<String> {
         let file = match parse_str::<File>(source) { Ok(f) => f, Err(_) => return vec![], };
         let mut gaps = Vec::new();
+=======
+    pub fn scan_auth_gaps(&self, source: &str) -> Vec<String> {
+        let file = match parse_str::<File>(source) {
+            Ok(f) => f,
+            Err(_) => return vec![],
+        };
+
+        let mut gaps = Vec::new();
+
+>>>>>>> 36d9df5 (user defined regex)
         for item in &file.items {
             if let Item::Impl(i) = item {
                 for impl_item in &i.items {
                     if let syn::ImplItem::Fn(f) = impl_item {
                         if let syn::Visibility::Public(_) = f.vis {
+                            let fn_name = f.sig.ident.to_string();
                             let mut has_mutation = false;
                             let mut has_auth = false;
                             self.check_fn_body(&f.block, &mut has_mutation, &mut has_auth);
+<<<<<<< HEAD
                             if has_mutation && !has_auth { gaps.push(f.sig.ident.to_string()); }
+=======
+                            if has_mutation && !has_auth {
+                                gaps.push(fn_name);
+                            }
+>>>>>>> 36d9df5 (user defined regex)
                         }
                     }
                 }
@@ -312,6 +400,7 @@ impl Analyzer {
         visitor.issues
     }
 
+<<<<<<< HEAD
     fn estimate_enum_size(&self, e: &syn::ItemEnum) -> usize {
         const DISCRIMINANT_SIZE: usize = 4;
         let mut max_variant = 0;
@@ -326,6 +415,33 @@ impl Analyzer {
         }
         DISCRIMINANT_SIZE + max_variant
     }
+=======
+    /// Run regex-based custom rules from config. Returns matches with line and snippet.
+    pub fn analyze_custom_rules(&self, source: &str, rules: &[CustomRule]) -> Vec<CustomRuleMatch> {
+        use regex::Regex;
+
+        let mut matches = Vec::new();
+        for rule in rules {
+            let re = match Regex::new(&rule.pattern) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+            for (line_no, line) in source.lines().enumerate() {
+                let line_num = line_no + 1;
+                if re.find(line).is_some() {
+                    matches.push(CustomRuleMatch {
+                        rule_name: rule.name.clone(),
+                        line: line_num,
+                        snippet: line.trim().to_string(),
+                    });
+                }
+            }
+        }
+        matches
+    }
+
+    // ── Size estimation helpers ───────────────────────────────────────────────
+>>>>>>> 36d9df5 (user defined regex)
 
     fn estimate_struct_size(&self, s: &syn::ItemStruct) -> usize {
         let mut total = 0;
@@ -364,8 +480,143 @@ fn has_contracttype(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| if let Meta::Path(path) = &attr.meta { path.is_ident("contracttype") || path.segments.iter().any(|s| s.ident == "contracttype") } else { false })
 }
 
+<<<<<<< HEAD
 fn classify_size(size: usize, limit: usize, approaching: usize, strict: bool, strict_threshold: usize) -> Option<SizeWarningLevel> {
     if size > limit { Some(SizeWarningLevel::ExceedsLimit) } else if size > approaching || (strict && size > strict_threshold) { Some(SizeWarningLevel::ApproachingLimit) } else { None }
+=======
+impl<'ast> Visit<'ast> for UnsafeVisitor {
+    fn visit_expr_method_call(&mut self, i: &'ast syn::ExprMethodCall) {
+        let method_name = i.method.to_string();
+        if method_name == "unwrap" || method_name == "expect" {
+            let pattern_type = if method_name == "unwrap" {
+                PatternType::Unwrap
+            } else {
+                PatternType::Expect
+            };
+            self.patterns.push(UnsafePattern {
+                pattern_type,
+                snippet: quote::quote!(#i).to_string(),
+                line: 0, // Simplified for now
+            });
+        }
+        visit::visit_expr_method_call(self, i);
+    }
+
+    fn visit_expr_macro(&mut self, i: &'ast syn::ExprMacro) {
+        if i.mac.path.is_ident("panic") {
+            self.patterns.push(UnsafePattern {
+                pattern_type: PatternType::Panic,
+                snippet: quote::quote!(#i).to_string(),
+                line: 0,
+            });
+        }
+        visit::visit_expr_macro(self, i);
+    }
+}
+
+/// Trait for runtime invariant checking. Implement to enforce contract invariants.
+pub trait SanctifiedGuard {
+    fn check_invariant(&self, env: &Env) -> Result<(), String>;
+}
+
+// ── ArithVisitor ──────────────────────────────────────────────────────────────
+
+struct ArithVisitor {
+    issues: Vec<ArithmeticIssue>,
+    /// Name of the function currently being visited.
+    current_fn: Option<String>,
+    /// De-duplicates issues: one per (function_name, operator) pair.
+    seen: HashSet<(String, String)>,
+}
+
+impl ArithVisitor {
+    /// Returns `(operator_str, suggestion_text)` for overflow-prone binary ops,
+    /// or `None` for operators that cannot overflow (comparisons, bitwise, etc).
+    fn classify_op(op: &syn::BinOp) -> Option<(&'static str, &'static str)> {
+        match op {
+            syn::BinOp::Add(_) => Some((
+                "+",
+                "Use `.checked_add(rhs)` or `.saturating_add(rhs)` to handle overflow",
+            )),
+            syn::BinOp::Sub(_) => Some((
+                "-",
+                "Use `.checked_sub(rhs)` or `.saturating_sub(rhs)` to handle underflow",
+            )),
+            syn::BinOp::Mul(_) => Some((
+                "*",
+                "Use `.checked_mul(rhs)` or `.saturating_mul(rhs)` to handle overflow",
+            )),
+            syn::BinOp::AddAssign(_) => Some((
+                "+=",
+                "Replace `a += b` with `a = a.checked_add(b).expect(\"overflow\")`",
+            )),
+            syn::BinOp::SubAssign(_) => Some((
+                "-=",
+                "Replace `a -= b` with `a = a.checked_sub(b).expect(\"underflow\")`",
+            )),
+            syn::BinOp::MulAssign(_) => Some((
+                "*=",
+                "Replace `a *= b` with `a = a.checked_mul(b).expect(\"overflow\")`",
+            )),
+            _ => None,
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for ArithVisitor {
+    /// Track the current function when descending into an impl method.
+    fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
+        let prev = self.current_fn.take();
+        self.current_fn = Some(node.sig.ident.to_string());
+        visit::visit_impl_item_fn(self, node);
+        self.current_fn = prev;
+    }
+
+    /// Also handle top-level `fn` items (helper functions outside impls).
+    fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
+        let prev = self.current_fn.take();
+        self.current_fn = Some(node.sig.ident.to_string());
+        visit::visit_item_fn(self, node);
+        self.current_fn = prev;
+    }
+
+    fn visit_expr_binary(&mut self, node: &'ast syn::ExprBinary) {
+        if let Some(fn_name) = self.current_fn.clone() {
+            if let Some((op_str, suggestion)) = Self::classify_op(&node.op) {
+                // Skip concatenation of string literals (false positive for `+`)
+                if !is_string_literal(&node.left) && !is_string_literal(&node.right) {
+                    let key = (fn_name.clone(), op_str.to_string());
+                    if !self.seen.contains(&key) {
+                        self.seen.insert(key);
+                        // Line number from the left operand's span
+                        let line = node.left.span().start().line;
+                        self.issues.push(ArithmeticIssue {
+                            function_name: fn_name.clone(),
+                            operation: op_str.to_string(),
+                            suggestion: suggestion.to_string(),
+                            location: format!("{}:{}", fn_name, line),
+                        });
+                    }
+                }
+            }
+        }
+        // Continue descending so nested binary ops are also checked
+        visit::visit_expr_binary(self, node);
+    }
+}
+
+/// Returns `true` if the expression is a string literal — used to avoid
+/// false-positives on `+` for string concatenation (rare in no_std Soroban
+/// but included for correctness).
+fn is_string_literal(expr: &syn::Expr) -> bool {
+    matches!(
+        expr,
+        syn::Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Str(_),
+            ..
+        })
+    )
+>>>>>>> 36d9df5 (user defined regex)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
