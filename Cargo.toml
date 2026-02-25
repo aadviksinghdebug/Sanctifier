@@ -5,6 +5,7 @@ members = [
     "contracts/vulnerable-contract",
     "contracts/token-with-bugs",
     "contracts/kani-poc",
+    "contracts/runtime-guard-wrapper",
 ]
 resolver = "2"
 
