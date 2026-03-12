@@ -288,7 +288,7 @@ mod tests {
         // Create existing file
         fs::write(&config_path, "existing content").unwrap();
 
-        let _args = InitArgs { force: false };
+        let args = InitArgs { force: false };
 
         // Change to temp directory
         let original_dir = std::env::current_dir().unwrap();
