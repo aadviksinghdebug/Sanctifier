@@ -29,6 +29,7 @@ type Story = StoryObj<typeof FindingsList>;
 const sampleFindings: Finding[] = [
   {
     id: "1",
+    code: "S003",
     severity: "critical",
     category: "Arithmetic",
     title: "Unchecked multiplication may overflow",
@@ -40,6 +41,7 @@ const sampleFindings: Finding[] = [
   },
   {
     id: "2",
+    code: "S001",
     severity: "high",
     category: "Auth Gap",
     title: "Missing authorization check on withdraw()",
@@ -49,6 +51,7 @@ const sampleFindings: Finding[] = [
   },
   {
     id: "3",
+    code: "S002",
     severity: "medium",
     category: "Panic",
     title: "Unwrap on user-supplied input",
@@ -60,6 +63,7 @@ const sampleFindings: Finding[] = [
   },
   {
     id: "4",
+    code: "S005",
     severity: "low",
     category: "Ledger Size",
     title: "Storage struct approaching size limit",

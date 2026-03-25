@@ -51,12 +51,17 @@ export function FindingsList({ findings, severityFilter }: FindingsListProps) {
                   <p className="mt-2 text-sm italic">💡 {f.suggestion}</p>
                 )}
               </div>
-<span
-              className={`shrink-0 rounded px-2 py-1 text-xs font-medium border ${severityColors[f.severity]}`}
-              aria-label={severityLabels[f.severity]}
-            >
-              {f.severity}
-            </span>
+              <div className="shrink-0 flex items-center gap-2">
+                <span
+                  className={`rounded px-2 py-1 text-xs font-medium border ${severityColors[f.severity]}`}
+                  aria-label={severityLabels[f.severity]}
+                >
+                  {f.severity}
+                </span>
+                <span className="font-mono text-xs rounded border border-zinc-300/70 dark:border-zinc-600 px-2 py-1 text-zinc-700 dark:text-zinc-300 theme-high-contrast:border-white theme-high-contrast:text-white">
+                  {f.code}
+                </span>
+              </div>
             </div>
             {f.snippet && (
               <div className="mt-3">

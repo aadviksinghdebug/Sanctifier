@@ -18,16 +18,35 @@ function arrayValue<T>(value: unknown): T[] {
 export function normalizeReport(input: unknown): AnalysisReport {
   const parsed = isRecord(input) ? input : {};
   const findings = isRecord(parsed.findings) ? parsed.findings : parsed;
-  const authGaps = arrayValue<string | { function?: string }>(findings.auth_gaps).flatMap((gap) => {
+  const authGaps: AnalysisReport["auth_gaps"] = [];
+
+  arrayValue<string | { function?: string; function_name?: string; code?: string }>(
+    findings.auth_gaps
+  ).forEach((gap) => {
     if (typeof gap === "string") {
-      return [gap];
+      authGaps.push(gap);
+      return;
     }
 
-    if (isRecord(gap) && typeof gap.function === "string") {
-      return [gap.function];
+    if (!isRecord(gap)) {
+      return;
     }
 
-    return [];
+    const fnName =
+      typeof gap.function_name === "string"
+        ? gap.function_name
+        : typeof gap.function === "string"
+          ? gap.function
+          : null;
+
+    if (!fnName) {
+      return;
+    }
+
+    authGaps.push({
+      function_name: fnName,
+      code: typeof gap.code === "string" ? gap.code : "AUTH_GAP",
+    });
   });
 
   return {
@@ -52,6 +71,7 @@ export function normalizeReport(input: unknown): AnalysisReport {
 
 function toFinding(
   id: string,
+  code: string,
   severity: Severity,
   category: string,
   title: string,
@@ -61,6 +81,7 @@ function toFinding(
 ): Finding {
   return {
     id,
+    code,
     severity,
     category,
     title,
@@ -75,14 +96,18 @@ export function transformReport(report: AnalysisReport): Finding[] {
   let idx = 0;
 
   (report.auth_gaps ?? []).forEach((g) => {
+    const location = typeof g === "string" ? g : g.function_name;
+    const code = typeof g === "string" ? "AUTH_GAP" : g.code;
     findings.push(
       toFinding(
         `auth-${idx++}`,
+        code,
         "critical",
         "Auth Gap",
         "Modifying state without require_auth()",
+        location,
         g,
-        { snippet: g }
+        { snippet: location }
       )
     );
   });
@@ -92,6 +117,7 @@ export function transformReport(report: AnalysisReport): Finding[] {
     findings.push(
       toFinding(
         `panic-${idx++}`,
+        p.code,
         severity,
         "Panic/Unwrap",
         `Using ${p.issue_type}`,
@@ -106,6 +132,7 @@ export function transformReport(report: AnalysisReport): Finding[] {
     findings.push(
       toFinding(
         `arith-${idx++}`,
+        a.code,
         "high",
         "Arithmetic",
         `Unchecked ${a.operation}`,
@@ -121,6 +148,7 @@ export function transformReport(report: AnalysisReport): Finding[] {
     findings.push(
       toFinding(
         `size-${idx++}`,
+        w.code ?? "LEDGER_SIZE_RISK",
         severity,
         "Ledger Size",
         `Struct ${w.struct_name} ${w.level === "ExceedsLimit" ? "exceeds" : "approaching"} limit`,
@@ -135,6 +163,7 @@ export function transformReport(report: AnalysisReport): Finding[] {
     findings.push(
       toFinding(
         `unsafe-${idx++}`,
+        u.code ?? "UNSAFE_PATTERN",
         "medium",
         "Unsafe Pattern",
         u.pattern_type,
@@ -149,6 +178,7 @@ export function transformReport(report: AnalysisReport): Finding[] {
     findings.push(
       toFinding(
         `custom-${idx++}`,
+        m.code ?? "CUSTOM_RULE",
         "low",
         "Custom Rule",
         m.rule_name,
@@ -176,8 +206,9 @@ export function extractCallGraph(
   (report.auth_gaps ?? []).forEach((gap) => {
     // Auth gaps are strings like "file.rs:function_name" indicating functions
     // that mutate storage without authentication
-    const parts = gap.split(":");
-    const funcName = parts.length > 1 ? parts[parts.length - 1].trim() : gap;
+    const location = typeof gap === "string" ? gap : gap.function_name;
+    const parts = location.split(":");
+    const funcName = parts.length > 1 ? parts[parts.length - 1].trim() : location;
     const file = parts.length > 1 ? parts.slice(0, -1).join(":").trim() : undefined;
     const funcId = `fn-${funcName}`;
 

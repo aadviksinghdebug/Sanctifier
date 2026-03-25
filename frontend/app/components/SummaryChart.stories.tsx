@@ -26,6 +26,7 @@ function makeFinding(
 ): Finding[] {
   return Array.from({ length: n }, (_, i) => ({
     id: `${severity}-${i}`,
+    code: `TEST_${severity.toUpperCase()}_${i + 1}`,
     severity,
     category: "test",
     title: `${severity} finding`,

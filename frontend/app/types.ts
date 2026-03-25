@@ -1,6 +1,7 @@
 export type Severity = "critical" | "high" | "medium" | "low";
 
 export interface SizeWarning {
+  code?: string;
   struct_name: string;
   estimated_size: number;
   limit: number;
@@ -8,18 +9,21 @@ export interface SizeWarning {
 }
 
 export interface PanicIssue {
+  code: string;
   function_name: string;
   issue_type: string;
   location: string;
 }
 
 export interface UnsafePattern {
+  code?: string;
   pattern_type: "Panic" | "Unwrap" | "Expect";
   line: number;
   snippet: string;
 }
 
 export interface ArithmeticIssue {
+  code: string;
   function_name: string;
   operation: string;
   suggestion: string;
@@ -27,6 +31,7 @@ export interface ArithmeticIssue {
 }
 
 export interface CustomRuleMatch {
+  code?: string;
   rule_name: string;
   line: number;
   snippet: string;
@@ -44,7 +49,7 @@ export interface CallGraphReportEdge {
 export interface AnalysisReport {
   size_warnings?: SizeWarning[];
   unsafe_patterns?: UnsafePattern[];
-  auth_gaps?: string[];
+  auth_gaps?: Array<string | { code: string; function_name: string }>;
   panic_issues?: PanicIssue[];
   arithmetic_issues?: ArithmeticIssue[];
   custom_rule_matches?: CustomRuleMatch[];
@@ -53,6 +58,7 @@ export interface AnalysisReport {
 
 export interface Finding {
   id: string;
+  code: string;
   severity: Severity;
   category: string;
   title: string;
