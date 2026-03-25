@@ -1,5 +1,16 @@
 #![no_std]
 
+/*!
+Formal invariant for `ReentrancyGuard`
+
+- Invariant: at most one re-entrant call is possible; once the guard is locked,
+  every subsequent nested call reverts until the current execution exits.
+- Mutex storage key: [`GUARD_KEY`] with the short-symbol value `RE_GRD`.
+- Known limitation: the mutex only protects the current contract instance. It
+  does not provide cross-contract coordination, so it cannot stop a separate
+  contract from maintaining its own independent call path or lock state.
+*/
+
 use soroban_sdk::{symbol_short, Env, Symbol};
 
 // ── Pure logic (verified with Kani) ─────────────────────────────────────────────
