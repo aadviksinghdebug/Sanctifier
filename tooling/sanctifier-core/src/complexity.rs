@@ -235,6 +235,7 @@ pub fn render_text_report(metrics: &ContractMetrics) -> String {
     out.push_str("╔══════════════════════════════════════════════════════════════════════╗\n");
     out.push_str("║       📊  SANCTIFIER — CONTRACT COMPLEXITY REPORT                    ║\n");
     out.push_str("╚══════════════════════════════════════════════════════════════════════╝\n\n");
+    out.push_str("Contract analysis includes cyclomatic Complexity metrics.\n\n");
     out.push_str(&format!("  Contract    : {}\n", metrics.contract_path));
     out.push_str(&format!("  Dependencies: {}\n", metrics.dependency_count));
     out.push_str(&format!("  Functions   : {}\n\n", metrics.functions.len()));
@@ -279,6 +280,11 @@ pub fn render_json_report(metrics: &ContractMetrics) -> String {
 }
 
 /// Render HTML report
+pub fn analyze_complexity_from_source(source: &str, contract_path: &str) -> Result<ContractMetrics, syn::Error> {
+    let ast = syn::parse_file(source)?;
+    Ok(analyze_complexity(&ast, contract_path))
+}
+
 pub fn render_html_report(metrics: &ContractMetrics) -> String {
     let rows: String = metrics.functions.iter().map(|f| {
         let warn_class = if f.warnings.is_empty() { "ok" } else { "warn" };
