@@ -9,8 +9,8 @@
 //! * [`analyze_with_config`] — run with a JSON-serialised [`SanctifyConfig`].
 
 use sanctifier_core::{
-    finding_codes, Analyzer, ArithmeticIssue, AuthGapIssue, EventIssue, PanicIssue, SanctifyConfig, SizeWarning,
-    StorageCollisionIssue, UnhandledResultIssue, UnsafePattern,
+    finding_codes, Analyzer, ArithmeticIssue, AuthGapIssue, EventIssue, PanicIssue, SanctifyConfig,
+    SizeWarning, StorageCollisionIssue, UnhandledResultIssue, UnsafePattern,
 };
 use serde::Serialize;
 use wasm_bindgen::prelude::*;

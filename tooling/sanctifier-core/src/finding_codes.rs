@@ -3,8 +3,8 @@
 //! Each constant (`S000` – `S012`) maps to a single diagnostic category.
 //! Call `all_finding_codes()` to retrieve the full catalogue at runtime.
 
-use serde::Serialize;
 use serde::Deserialize;
+use serde::Serialize;
 
 /// Severity level for findings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
