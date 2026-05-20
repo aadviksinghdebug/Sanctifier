@@ -5,10 +5,13 @@
 [![crates.io](https://img.shields.io/crates/v/sanctifier-cli.svg)](https://crates.io/crates/sanctifier-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/HyperSafeD/Sanctifier)
+[![Soroban Testnet](https://img.shields.io/badge/Soroban%20Testnet-Live-2dd4bf?style=flat-square&logo=stellar)](LIVE_TESTNET.md)
 
 <p align="center">
   <img src="branding/logo.png" width="300" alt="Sanctifier Logo">
 </p>
+
+> 🚀 **Live on Soroban Testnet.** Runtime Guard Wrapper, Vulnerable Contract & Reentrancy Guard are deployed and recording on-chain audit events. See **[LIVE_TESTNET.md](LIVE_TESTNET.md)** for contract addresses, verification commands, and event logs.
 
 **Sanctifier** is a security and formal-verification suite for
 [Stellar Soroban](https://soroban.stellar.org/) smart contracts.
