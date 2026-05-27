@@ -1,19 +1,15 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
-export type Theme = "light" | "dark" | "system";
+export type Theme = "light" | "dark" | "system" | "high-contrast";
+
 const STORAGE_KEY = "theme";
 
 type ThemeContextValue = {
   theme: Theme;
-  toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
+  toggleTheme: () => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
@@ -24,28 +20,37 @@ function resolveSystemTheme(): "light" | "dark" {
 }
 
 function applyTheme(theme: Theme) {
-  const resolved = theme === "system" ? resolveSystemTheme() : theme;
   const root = document.documentElement;
-  root.dataset.theme = resolved;
-  root.classList.toggle("dark", resolved === "dark");
-  root.style.colorScheme = resolved;
+  const resolved = theme === "system" ? resolveSystemTheme() : theme;
+
+  // Remove all theme classes first
+  root.classList.remove("dark", "theme-high-contrast");
+  root.removeAttribute("data-theme");
+
+  if (theme === "high-contrast") {
+    root.classList.add("theme-high-contrast");
+    root.dataset.theme = "high-contrast";
+  } else {
+    root.dataset.theme = resolved;
+    root.classList.toggle("dark", resolved === "dark");
+  }
+  root.style.colorScheme = theme === "high-contrast" ? "dark" : resolved;
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>("system");
 
-  // On mount: read stored preference, apply to DOM — do NOT write back to localStorage here
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     const next: Theme =
-      stored === "light" || stored === "dark" || stored === "system"
-        ? stored
+      stored === "light" || stored === "dark" || stored === "system" || stored === "high-contrast"
+        ? (stored as Theme)
         : "system";
     setThemeState(next);
     applyTheme(next);
   }, []);
 
-  // When "system" is active, track OS preference changes in real time
+  // Track OS preference changes when system is active
   useEffect(() => {
     if (theme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -61,22 +66,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleTheme = () => {
-    const cycle: Theme[] = ["light", "dark", "system"];
+    const cycle: Theme[] = ["light", "dark", "system", "high-contrast"];
     const idx = cycle.indexOf(theme);
     setTheme(cycle[(idx + 1) % cycle.length]);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error("useTheme must be used within ThemeProvider");
-  }
-  return context;
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
+  return ctx;
 }

@@ -197,3 +197,6 @@ impl RuleRegistry {
         registry
     }
 }
+
+#[cfg(test)]
+mod crlf_tests;

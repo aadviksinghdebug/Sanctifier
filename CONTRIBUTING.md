@@ -138,3 +138,66 @@ Contributors should ensure that any changes to `data/` or `schemas/` are correct
 - [ ] CI passes on opened PR
 - [ ] Peer review completed
 - [ ] No direct push to main
+
+
+---
+
+## Code Style
+
+### Rust
+
+- Follow the standard `rustfmt` formatting (`cargo fmt --all`).
+- Lint with `cargo clippy --all-targets --all-features -- -D warnings`.
+- Use `snake_case` for functions and variables, `PascalCase` for types and traits.
+- Prefer `Result<T, E>` over `panic!` / `unwrap()` in library code.
+- Every public item must have a doc comment (`///`).
+- Keep functions short and focused; extract helpers rather than nesting deeply.
+
+### TypeScript / JavaScript
+
+- Format with Prettier (`pnpm format`).
+- Lint with ESLint (`pnpm lint`).
+- Use `camelCase` for variables and functions, `PascalCase` for components and types.
+- Prefer `const` over `let`; avoid `var`.
+- All React components must be typed with explicit prop interfaces.
+- No `any` types without a comment explaining why.
+
+---
+
+## Review SLA
+
+| Stage | Target |
+|---|---|
+| First response (triage / acknowledgement) | **3 business days** |
+| Full review (approve / request changes) | **5 business days** |
+| Re-review after changes | **2 business days** |
+
+If your PR has not received a response within the SLA, ping `@HyperSafeD` in the PR thread.
+
+---
+
+## Label Glossary
+
+| Label | Meaning |
+|---|---|
+| `type: bug` | Something is broken or behaves incorrectly |
+| `type: feature` | New capability or enhancement |
+| `type: docs` | Documentation-only change |
+| `type: refactor` | Code restructuring with no behaviour change |
+| `type: test` | Test additions or fixes |
+| `area: core-engine` | Changes to `tooling/sanctifier-core` |
+| `area: frontend` | Changes to `frontend/` |
+| `area: contracts` | Changes to `contracts/` |
+| `area: docs` | Changes to documentation files |
+| `area: testing` | Test infrastructure or coverage |
+| `difficulty: easy` | Good for first-time contributors; well-scoped |
+| `difficulty: medium` | Requires familiarity with the codebase |
+| `difficulty: hard` | Complex; discuss approach before starting |
+| `priority: high` | Blocking or time-sensitive |
+| `priority: medium` | Important but not blocking |
+| `priority: low` | Nice-to-have |
+| `good first issue` | Recommended starting point for new contributors |
+| `Stellar Wave` | Part of the Stellar Wave contributor programme |
+| `status: blocked` | Waiting on another issue or external dependency |
+| `status: needs-info` | Awaiting clarification from the reporter |
+| `status: wip` | Work in progress — do not pick up |
