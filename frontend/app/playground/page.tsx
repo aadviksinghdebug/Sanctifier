@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { AnalysisTerminal } from "../components/AnalysisTerminal";
 import { FindingsList } from "../components/FindingsList";
 import { Play, RotateCcw, Save, Share2, Sparkles, Terminal, Copy, Check, Trash2, X } from "lucide-react";
@@ -17,6 +18,99 @@ impl HelloContract {
         Symbol::new(&env, "Hello")
     }
 }`;
+
+
+// ── Named samples for ?sample= deeplink (issue #823) ─────────────────────────
+export const PLAYGROUND_SAMPLES: Record<string, { label: string; code: string }> = {
+  "auth-gap": {
+    label: "Auth Gap",
+    code: `use soroban_sdk::{contract, contractimpl, Env, Address};
+
+#[contract]
+pub struct AuthGapContract;
+
+#[contractimpl]
+impl AuthGapContract {
+    // BUG: missing caller.require_auth() — anyone can call this
+    pub fn withdraw(env: Env, caller: Address, amount: i128) {
+        // caller.require_auth();  <-- should be here
+        let balance: i128 = env.storage().instance().get(&caller).unwrap_or(0);
+        env.storage().instance().set(&caller, &(balance - amount));
+    }
+}`,
+  },
+  "overflow": {
+    label: "Arithmetic Overflow",
+    code: `use soroban_sdk::{contract, contractimpl, Env};
+
+#[contract]
+pub struct OverflowContract;
+
+#[contractimpl]
+impl OverflowContract {
+    // BUG: unchecked addition can overflow
+    pub fn add(env: Env, a: u32, b: u32) -> u32 {
+        a + b  // use a.checked_add(b).expect("overflow") instead
+    }
+}`,
+  },
+  "unsafe-prng": {
+    label: "Unsafe PRNG",
+    code: `use soroban_sdk::{contract, contractimpl, Env};
+
+#[contract]
+pub struct PrngContract;
+
+#[contractimpl]
+impl PrngContract {
+    // BUG: ledger timestamp is miner-influenceable — not safe for randomness
+    pub fn random(env: Env) -> u64 {
+        env.ledger().timestamp() % 100
+    }
+}`,
+  },
+  "storage-collision": {
+    label: "Storage Collision",
+    code: `use soroban_sdk::{contract, contractimpl, symbol_short, Env, Symbol};
+
+const KEY: Symbol = symbol_short!("DATA");
+
+#[contract]
+pub struct CollisionA;
+#[contract]
+pub struct CollisionB;
+
+#[contractimpl]
+impl CollisionA {
+    // BUG: both contracts use the same storage key "DATA"
+    pub fn set(env: Env, v: u32) { env.storage().instance().set(&KEY, &v); }
+}
+
+#[contractimpl]
+impl CollisionB {
+    pub fn get(env: Env) -> u32 { env.storage().instance().get(&KEY).unwrap_or(0) }
+}`,
+  },
+  "reentrancy": {
+    label: "Reentrancy",
+    code: `use soroban_sdk::{contract, contractimpl, token, Address, Env};
+
+#[contract]
+pub struct ReentrancyContract;
+
+#[contractimpl]
+impl ReentrancyContract {
+    // BUG: external call before state update — classic reentrancy
+    pub fn withdraw(env: Env, caller: Address, token_addr: Address, amount: i128) {
+        let balance: i128 = env.storage().instance().get(&caller).unwrap_or(0);
+        assert!(balance >= amount, "insufficient");
+        // State update should happen BEFORE the external call
+        token::Client::new(&env, &token_addr).transfer(&env.current_contract_address(), &caller, &amount);
+        env.storage().instance().set(&caller, &(balance - amount)); // too late!
+    }
+}`,
+  },
+};
 
 const STORAGE_KEY_SNIPPETS = "playground_snippets";
 const STORAGE_KEY_LAST_CODE = "playground_last_code";
@@ -44,6 +138,16 @@ export default function PlaygroundPage() {
   const [severityFilter, setSeverityFilter] = useState<"all" | "critical" | "high" | "medium" | "low">("all");
 
   // Load saved snippets from localStorage on mount
+
+  // Load sample from ?sample= deeplink
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const sampleId = searchParams.get("sample");
+    if (sampleId && PLAYGROUND_SAMPLES[sampleId]) {
+      setCode(PLAYGROUND_SAMPLES[sampleId].code);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY_SNIPPETS);
     if (stored) {
