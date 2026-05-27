@@ -5,7 +5,10 @@ import dynamic from "next/dynamic";
 import type { Severity } from "../types";
 import { transformReport, extractCallGraph, normalizeReport } from "../lib/transform";
 import { normalizeFindingCodeQuery, validateFindingCodeQuery } from "../lib/finding-filters";
-import { validateContractUpload } from "../lib/upload-validation";
+import { validateContractBatch } from "../lib/upload-validation";
+import type { RejectedFile } from "../lib/upload-validation";
+import type { FileProgress } from "../components/DashboardHeader";
+import type { WorkspaceSummary } from "../types";
 import {
   createWorkspaceFromSingleReport,
   extractErrorMessage,
@@ -35,7 +38,7 @@ const CallGraph = dynamic(() => import("../components/CallGraph").then((m) => m.
 type Tab = "findings" | "callgraph";
 
 export default function DashboardPage() {
-  const { selectedContract, setWorkspace } = useWorkspace();
+  const { selectedContract, setWorkspace, updateContractReport } = useWorkspace();
   const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
   const [error, setError] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState("");
@@ -46,6 +49,8 @@ export default function DashboardPage() {
   const [codeFilterError, setCodeFilterError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<Record<string, FileProgress>>({});
+  const [rejectedFiles, setRejectedFiles] = useState<RejectedFile[]>([]);
 
   const currentReport = selectedContract?.report;
 
@@ -102,61 +107,90 @@ export default function DashboardPage() {
     e.target.value = "";
   }, [parseReport]);
 
-  const handleContractUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.currentTarget;
-    const file = input.files?.[0];
-    input.value = "";
+  const analyzeFile = useCallback(async (file: File): Promise<unknown> => {
+    const formData = new FormData();
+    formData.append("contract", file);
+    const response = await fetch("/api/analyze", { method: "POST", body: formData });
+    const rawBody = await response.text();
+    let payload: unknown = null;
+    if (rawBody) {
+      try { payload = JSON.parse(rawBody); } catch { payload = rawBody; }
+    }
+    if (!response.ok) throw new Error(extractErrorMessage(payload, "Contract analysis failed"));
+    return payload;
+  }, []);
 
-    if (!file) {
-      return;
+  const handleContractFiles = useCallback(async (files: File[]) => {
+    const { valid, rejected } = validateContractBatch(files);
+
+    if (rejected.length > 0) {
+      setRejectedFiles(rejected);
+      setTimeout(() => setRejectedFiles([]), 6000);
     }
 
-    const validationError = validateContractUpload(file);
-    if (validationError) {
-      setUploadStatus(null);
-      setError(validationError);
-      return;
-    }
+    if (valid.length === 0) return;
 
     setError(null);
-    setUploadStatus(`Analyzing ${file.name}...`);
     setIsUploadingContract(true);
 
-    try {
-      const formData = new FormData();
-      formData.append("contract", file);
-
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        body: formData,
-      });
-      const rawBody = await response.text();
-
-      let payload: unknown = null;
-      if (rawBody) {
-        try {
-          payload = JSON.parse(rawBody);
-        } catch {
-          payload = rawBody;
-        }
+    if (valid.length === 1) {
+      const file = valid[0];
+      setBatchProgress({ [file.name]: "analyzing" });
+      setUploadStatus(`Analyzing ${file.name}…`);
+      try {
+        const payload = await analyzeFile(file);
+        setJsonInput(JSON.stringify(payload, null, 2));
+        applyReport(payload);
+        setBatchProgress({ [file.name]: "done" });
+        setUploadStatus(`Analysis report ready for ${file.name}.`);
+      } catch (err) {
+        setBatchProgress({ [file.name]: "error" });
+        setUploadStatus(null);
+        setError(err instanceof Error ? err.message : "Contract analysis failed");
+      } finally {
+        setIsUploadingContract(false);
       }
-
-      if (!response.ok) {
-        throw new Error(extractErrorMessage(payload, "Contract analysis failed"));
-      }
-
-      setJsonInput(JSON.stringify(payload, null, 2));
-      applyReport(payload);
-      setUploadStatus(`Analysis report ready for ${file.name}.`);
-    } catch (uploadError) {
-      setUploadStatus(null);
-      setError(
-        uploadError instanceof Error ? uploadError.message : "Contract analysis failed"
-      );
-    } finally {
-      setIsUploadingContract(false);
+      return;
     }
-  }, [applyReport]);
+
+    // Batch: create workspace skeleton, then analyze each file
+    const initialProgress: Record<string, FileProgress> = {};
+    for (const f of valid) initialProgress[f.name] = "pending";
+    setBatchProgress(initialProgress);
+    setUploadStatus(`Analyzing ${valid.length} files…`);
+
+    const skeleton: WorkspaceSummary = {
+      workspace: "batch-upload",
+      contracts: valid.map((f) => ({ name: f.name, total_findings: 0 })),
+      shared_libs: [],
+      grand_total_findings: 0,
+    };
+    setWorkspace(skeleton);
+
+    let doneCount = 0;
+    let errorCount = 0;
+
+    await Promise.all(
+      valid.map(async (file) => {
+        setBatchProgress((prev) => ({ ...prev, [file.name]: "analyzing" }));
+        try {
+          const payload = await analyzeFile(file);
+          const report = normalizeReport(payload);
+          updateContractReport(file.name, report);
+          setBatchProgress((prev) => ({ ...prev, [file.name]: "done" }));
+          doneCount++;
+        } catch {
+          setBatchProgress((prev) => ({ ...prev, [file.name]: "error" }));
+          errorCount++;
+        }
+      })
+    );
+
+    setIsUploadingContract(false);
+    setUploadStatus(
+      `Batch complete: ${doneCount} analyzed${errorCount > 0 ? `, ${errorCount} failed` : ""}.`
+    );
+  }, [analyzeFile, applyReport, setWorkspace, updateContractReport]);
 
   const handleCodeFilterChange = useCallback((input: string) => {
     const normalized = normalizeFindingCodeQuery(input);
@@ -171,18 +205,20 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 theme-high-contrast:bg-black theme-high-contrast:text-white">
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        <DashboardHeader 
+        <DashboardHeader
           jsonInput={jsonInput}
           setJsonInput={setJsonInput}
           loadReport={loadReport}
           handleFileUpload={handleFileUpload}
-          handleContractUpload={handleContractUpload}
+          onContractFiles={handleContractFiles}
           exportToPdf={() => exportToPdf(findings)}
           hasData={hasData}
           isProcessing={isProcessing}
           uploadStatus={uploadStatus}
           error={error}
           sampleJson={SAMPLE_JSON}
+          batchProgress={batchProgress}
+          rejectedFiles={rejectedFiles}
         />
 
         {/* Mobile sidebar hamburger — only shown when a multi-contract workspace is loaded */}

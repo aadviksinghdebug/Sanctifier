@@ -51,6 +51,39 @@ impl std::str::FromStr for SeverityLevel {
     }
 }
 
+/// Built-in analysis presets. Overrides --exit-code and --min-severity when set.
+#[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AnalysisProfile {
+    /// Emit all rules; any finding triggers a non-zero exit
+    Strict,
+    /// Emit only critical and high findings; always exits 0
+    Lenient,
+    /// Emit all rules with full detail; always exits 0 (use for audit reports)
+    Audit,
+    /// Emit all rules; critical and high findings trigger a non-zero exit (recommended for CI)
+    Ci,
+}
+
+impl AnalysisProfile {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Strict  => "strict",
+            Self::Lenient => "lenient",
+            Self::Audit   => "audit",
+            Self::Ci      => "ci",
+        }
+    }
+
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Strict  => "all rules emitted; any finding is fatal",
+            Self::Lenient => "critical+high only; always exits 0",
+            Self::Audit   => "all rules emitted; always exits 0",
+            Self::Ci      => "all rules emitted; critical+high findings are fatal",
+        }
+    }
+}
+
 #[derive(Args, Debug, Clone)]
 pub struct AnalyzeArgs {
     /// Path to the contract directory or Cargo.toml
@@ -80,6 +113,9 @@ pub struct AnalyzeArgs {
     /// Disable incremental analysis cache
     #[arg(short = 'n', long)]
     pub no_cache: bool,
+    /// Analysis profile preset — overrides --exit-code and --min-severity when set
+    #[arg(long, value_enum)]
+    pub profile: Option<AnalysisProfile>,
 }
 
 // ── Per-file result container ────────────────────────────────────────────────
@@ -296,6 +332,15 @@ pub fn run_analysis(args: AnalyzeArgs) -> anyhow::Result<bool> {
         }
     }
 
+    // Apply profile filter: lenient suppresses medium/low-tier categories
+    if matches!(args.profile, Some(AnalysisProfile::Lenient)) {
+        collisions.clear();
+        variable_shadowing_violations.clear();
+        custom_matches.clear();
+        contractimport_issues.clear();
+        vuln_matches.retain(|v| matches!(v.severity.as_str(), "critical" | "high"));
+    }
+
     let total_findings = collisions.len()
         + size_warnings.len()
         + unsafe_patterns.len()
@@ -391,10 +436,16 @@ pub fn run_analysis(args: AnalyzeArgs) -> anyhow::Result<bool> {
         highest
     };
 
-    let should_exit_with_1 = args.exit_code
-        && highest_finding_severity
+    // Profile overrides --exit-code / --min-severity when set
+    let should_exit_with_1 = match args.profile {
+        Some(AnalysisProfile::Strict)  => total_findings > 0,
+        Some(AnalysisProfile::Lenient) => false,
+        Some(AnalysisProfile::Audit)   => false,
+        Some(AnalysisProfile::Ci)      => has_critical || has_high,
+        None => args.exit_code && highest_finding_severity
             .map(|h| h >= args.min_severity)
-            .unwrap_or(false);
+            .unwrap_or(false),
+    };
 
     let timestamp = chrono_timestamp();
     let _duration_ms = start.elapsed().as_millis() as u64;
@@ -444,6 +495,7 @@ pub fn run_analysis(args: AnalyzeArgs) -> anyhow::Result<bool> {
                 "timeout_secs": timeout_secs,
                 "cached_files": cached_counter.load(Ordering::Relaxed),
                 "total_files": total_files,
+                "profile": args.profile.map(|p| p.as_str()),
             },
             "error_codes": finding_codes::all_finding_codes(),
             "summary": {
@@ -473,6 +525,14 @@ pub fn run_analysis(args: AnalyzeArgs) -> anyhow::Result<bool> {
     }
 
     // ── Text output ──────────────────────────────────────────────────────────
+    if let Some(profile) = args.profile {
+        println!(
+            "{} Profile: {} — {}",
+            "ℹ".blue(),
+            profile.as_str().bold(),
+            profile.description()
+        );
+    }
     if !timed_out_files.is_empty() {
         println!(
             "\n{} {} file(s) timed out ({}s limit):",

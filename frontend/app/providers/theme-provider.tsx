@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-type Theme = "light" | "dark";
+export type Theme = "light" | "dark" | "system";
 const STORAGE_KEY = "theme";
 
 type ThemeContextValue = {
@@ -18,46 +18,52 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-function getSystemTheme(): Theme {
-  if (typeof window === "undefined") {
-    return "light";
-  }
-
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+function resolveSystemTheme(): "light" | "dark" {
+  if (typeof window === "undefined") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function syncTheme(theme: Theme) {
+function applyTheme(theme: Theme) {
+  const resolved = theme === "system" ? resolveSystemTheme() : theme;
   const root = document.documentElement;
-  root.dataset.theme = theme;
-  root.classList.toggle("dark", theme === "dark");
-  root.style.colorScheme = theme;
+  root.dataset.theme = resolved;
+  root.classList.toggle("dark", resolved === "dark");
+  root.style.colorScheme = resolved;
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
 
+  // On mount: read stored preference, apply to DOM — do NOT write back to localStorage here
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    const nextTheme = stored === "light" || stored === "dark"
-      ? stored
-      : getSystemTheme();
-    // Sync the hydrated state to the persisted theme after the bootstrap script has prevented flicker.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setThemeState(nextTheme);
-    syncTheme(nextTheme);
-    window.localStorage.setItem(STORAGE_KEY, nextTheme);
+    const next: Theme =
+      stored === "light" || stored === "dark" || stored === "system"
+        ? stored
+        : "system";
+    setThemeState(next);
+    applyTheme(next);
   }, []);
 
-  const setTheme = (nextTheme: Theme) => {
-    setThemeState(nextTheme);
-    syncTheme(nextTheme);
-    window.localStorage.setItem(STORAGE_KEY, nextTheme);
+  // When "system" is active, track OS preference changes in real time
+  useEffect(() => {
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = () => applyTheme("system");
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [theme]);
+
+  const setTheme = (next: Theme) => {
+    setThemeState(next);
+    applyTheme(next);
+    window.localStorage.setItem(STORAGE_KEY, next);
   };
 
   const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
+    const cycle: Theme[] = ["light", "dark", "system"];
+    const idx = cycle.indexOf(theme);
+    setTheme(cycle[(idx + 1) % cycle.length]);
   };
 
   return (

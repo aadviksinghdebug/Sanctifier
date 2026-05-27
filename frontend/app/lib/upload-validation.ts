@@ -20,3 +20,24 @@ export function validateContractUpload(file: File): string | null {
 
   return null;
 }
+
+export type RejectedFile = { name: string; reason: string };
+
+export type BatchValidationResult = {
+  valid: File[];
+  rejected: RejectedFile[];
+};
+
+export function validateContractBatch(files: File[]): BatchValidationResult {
+  const valid: File[] = [];
+  const rejected: RejectedFile[] = [];
+  for (const file of files) {
+    const error = validateContractUpload(file);
+    if (error) {
+      rejected.push({ name: file.name, reason: error });
+    } else {
+      valid.push(file);
+    }
+  }
+  return { valid, rejected };
+}
