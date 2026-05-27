@@ -313,5 +313,5 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md), then pick an issue and say hi.
 MIT — see [LICENSE](LICENSE).
 
 <div align="center">
-  <sub>Built for the Stellar Soroban ecosystem · Mainnet doesn't forgive · Audit-grade, in CI</sub>
+  <sub>Built for the Stellar Soroban ecosystem · Mainnet doesn't forgive · Audit-grade, in CI.</sub>
 </div>
