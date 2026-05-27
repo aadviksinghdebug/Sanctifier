@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const [codeFilterInput, setCodeFilterInput] = useState("");
   const [codeFilterError, setCodeFilterError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const currentReport = selectedContract?.report;
 
@@ -184,8 +185,24 @@ export default function DashboardPage() {
           sampleJson={SAMPLE_JSON}
         />
 
+        {/* Mobile sidebar hamburger — only shown when a multi-contract workspace is loaded */}
+        <div className="md:hidden">
+          <button
+            aria-label="Open workspace sidebar"
+            onClick={() => setSidebarOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <rect y="3" width="18" height="2" rx="1" fill="currentColor" />
+              <rect y="8" width="18" height="2" rx="1" fill="currentColor" />
+              <rect y="13" width="18" height="2" rx="1" fill="currentColor" />
+            </svg>
+            Contracts
+          </button>
+        </div>
+
         <div className="flex flex-col md:flex-row gap-8">
-          <WorkspaceSidebar />
+          <WorkspaceSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
           <div className="flex-1 space-y-8">
             {hasData && (
