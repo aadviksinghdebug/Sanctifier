@@ -1,8 +1,10 @@
 #![recursion_limit = "512"]
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use sanctifier_core::SanctifyConfig;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use tracing::error;
 
@@ -60,6 +62,16 @@ pub enum Commands {
     Workspace(commands::workspace::WorkspaceArgs),
     /// Watch for file changes and auto-rerun analysis
     Watch(commands::watch::WatchArgs),
+    /// Generate shell completions for bash, zsh, fish, powershell, or elvish
+    Completions {
+        /// Shell type: bash, zsh, fish, powershell, elvish
+        #[arg(value_parser = clap::value_parser!(Shell))]
+        shell: Shell,
+    },
+    /// Suppress a finding by adding it to .sanctify.toml
+    Suppress(commands::suppress::SuppressArgs),
+    /// Start HTTP server mode for CI integration
+    Serve(commands::serve::ServeArgs),
 }
 
 fn main() {
@@ -176,6 +188,16 @@ fn run() -> anyhow::Result<()> {
         }
         Commands::Watch(args) => {
             commands::watch::exec(args)?;
+        }
+        Commands::Completions { shell } => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "sanctifier", &mut io::stdout());
+        }
+        Commands::Suppress(args) => {
+            commands::suppress::exec(args)?;
+        }
+        Commands::Serve(args) => {
+            commands::serve::exec(args)?;
         }
     }
 
