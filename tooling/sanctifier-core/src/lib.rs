@@ -101,6 +101,59 @@ where
     catch_unwind(f).unwrap_or_default()
 }
 
+// ── Source provenance ─────────────────────────────────────────────────────────
+
+/// Sentry-style source provenance attached to a finding.
+///
+/// `git_blob_sha` is the SHA-1 object hash of the source file at analysis
+/// time (obtainable via `git hash-object <file>`).  It pins the finding to an
+/// exact revision so cross-revision tracking in issue trackers is unambiguous.
+///
+/// `stable_id` is a deterministic digest of `(rule_name, normalised_snippet)`
+/// that survives minor reformats — two findings for the same logical location
+/// produce the same `stable_id` even when surrounding lines shift.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct SourceProvenance {
+    /// SHA-1 blob hash of the analysed source file, if available.
+    pub git_blob_sha: Option<String>,
+    /// 1-based line number within the source file.
+    pub line: usize,
+    /// Reformat-stable identifier derived from the rule name and code context.
+    pub stable_id: String,
+}
+
+impl SourceProvenance {
+    /// Build a [`SourceProvenance`] from a rule name and a source snippet.
+    ///
+    /// The `stable_id` is a 16-character hex string produced by a djb2 hash of
+    /// `"<rule_name>:<whitespace-normalised snippet>"`, making it independent
+    /// of line numbers and minor whitespace changes.
+    pub fn new(rule_name: &str, snippet: &str, line: usize) -> Self {
+        let normalised: String = snippet.split_whitespace().collect::<Vec<_>>().join(" ");
+        let combined = format!("{}:{}", rule_name, normalised);
+        let stable_id = format!("{:016x}", djb2_hash(&combined));
+        Self {
+            git_blob_sha: None,
+            line,
+            stable_id,
+        }
+    }
+
+    /// Attach a git blob SHA to the provenance.
+    pub fn with_git_blob_sha(mut self, sha: impl Into<String>) -> Self {
+        self.git_blob_sha = Some(sha.into());
+        self
+    }
+}
+
+fn djb2_hash(s: &str) -> u64 {
+    let mut hash: u64 = 5381;
+    for byte in s.bytes() {
+        hash = hash.wrapping_mul(33).wrapping_add(u64::from(byte));
+    }
+    hash
+}
+
 // ── Existing types ────────────────────────────────────────────────────────────
 
 /// Severity of a ledger size warning.

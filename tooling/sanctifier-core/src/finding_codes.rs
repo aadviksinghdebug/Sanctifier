@@ -67,6 +67,8 @@ pub const MISSING_STATE_EVENT: &str = "S020";
 pub const INSTANCE_STORAGE_MISUSE: &str = "S021";
 /// Raw `invoke_contract` call without `try_invoke_contract` error handling.
 pub const RAW_INVOKE_CONTRACT: &str = "S022";
+/// `#[test]` function that never references a `ContractClient`, bypassing the host-function boundary.
+pub const SHALLOW_TEST: &str = "S023";
 
 /// A single finding-code entry with machine-readable code, category, and
 /// human-readable description.
@@ -199,6 +201,11 @@ pub fn all_finding_codes() -> Vec<FindingCode> {
             category: "error_handling",
             description: "Cross-contract call via `invoke_contract` panics on callee failure; use `try_invoke_contract` with explicit Result handling",
         },
+        FindingCode {
+            code: SHALLOW_TEST,
+            category: "test_quality",
+            description: "#[test] function never references a ContractClient, bypassing serialization and auth paths exercised by the Soroban host-function boundary",
+        },
     ]
 }
 
@@ -234,5 +241,6 @@ mod tests {
         assert!(codes.iter().any(|c| c.code == MISSING_STATE_EVENT));
         assert!(codes.iter().any(|c| c.code == INSTANCE_STORAGE_MISUSE));
         assert!(codes.iter().any(|c| c.code == RAW_INVOKE_CONTRACT));
+        assert!(codes.iter().any(|c| c.code == SHALLOW_TEST));
     }
 }

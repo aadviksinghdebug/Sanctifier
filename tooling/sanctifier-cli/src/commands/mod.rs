@@ -1,5 +1,6 @@
 pub mod analyze;
 pub mod badge;
+pub mod benchmark;
 pub mod complexity;
 pub mod diff;
 pub mod fix;

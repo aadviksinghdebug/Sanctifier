@@ -74,6 +74,8 @@ pub enum Commands {
     Suppress(commands::suppress::SuppressArgs),
     /// Start HTTP server mode for CI integration
     Serve(commands::serve::ServeArgs),
+    /// Run the analyser on a contract corpus and emit a per-rule performance table
+    Benchmark(commands::benchmark::BenchmarkArgs),
 }
 
 fn main() {
@@ -206,6 +208,9 @@ fn run() -> anyhow::Result<()> {
         }
         Commands::Serve(args) => {
             commands::serve::exec(args)?;
+        }
+        Commands::Benchmark(args) => {
+            commands::benchmark::exec(args)?;
         }
     }
 
