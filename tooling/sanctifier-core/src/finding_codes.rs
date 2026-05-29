@@ -70,7 +70,13 @@ pub const RAW_INVOKE_CONTRACT: &str = "S022";
 /// `#[test]` function that never references a `ContractClient`, bypassing the host-function boundary.
 pub const SHALLOW_TEST: &str = "S023";
 /// transfer_from-style function consumes 'from' balance without allowance check.
-pub const TRANSFER_FROM_NO_ALLOWANCE: &str = "S023";
+pub const TRANSFER_FROM_NO_ALLOWANCE: &str = "S024";
+/// Persistent or Temporary storage write without a corresponding TTL bump (extend_ttl).
+pub const MISSING_TTL_BUMP: &str = "S025";
+/// Taint propagation finding — user-controlled data reaches a sensitive sink.
+pub const TAINT_PROPAGATION: &str = "S026";
+/// External call before state write without a reentrancy guard (static, complement to runtime guard).
+pub const STATIC_REENTRANCY: &str = "S027";
 
 /// A single finding-code entry with machine-readable code, category, and
 /// human-readable description.
@@ -207,9 +213,26 @@ pub fn all_finding_codes() -> Vec<FindingCode> {
             code: SHALLOW_TEST,
             category: "test_quality",
             description: "#[test] function never references a ContractClient, bypassing serialization and auth paths exercised by the Soroban host-function boundary",
+        },
+        FindingCode {
             code: TRANSFER_FROM_NO_ALLOWANCE,
             category: "token_safety",
             description: "transfer_from-style function moves 'from' balance without checking or decrementing the spender's allowance, allowing any caller to drain any account",
+        },
+        FindingCode {
+            code: MISSING_TTL_BUMP,
+            category: "storage_ttl",
+            description: "Persistent or Temporary storage entry written without a corresponding extend_ttl call — entry may silently expire",
+        },
+        FindingCode {
+            code: TAINT_PROPAGATION,
+            category: "taint_analysis",
+            description: "User-controlled data (tainted source) reaches a sensitive sink without sanitisation, including through tuple/struct destructures",
+        },
+        FindingCode {
+            code: STATIC_REENTRANCY,
+            category: "reentrancy",
+            description: "External contract call precedes a storage mutation without a reentrancy guard — classic checks-effects-interactions violation",
         },
     ]
 }
@@ -248,5 +271,8 @@ mod tests {
         assert!(codes.iter().any(|c| c.code == RAW_INVOKE_CONTRACT));
         assert!(codes.iter().any(|c| c.code == SHALLOW_TEST));
         assert!(codes.iter().any(|c| c.code == TRANSFER_FROM_NO_ALLOWANCE));
+        assert!(codes.iter().any(|c| c.code == MISSING_TTL_BUMP));
+        assert!(codes.iter().any(|c| c.code == TAINT_PROPAGATION));
+        assert!(codes.iter().any(|c| c.code == STATIC_REENTRANCY));
     }
 }
